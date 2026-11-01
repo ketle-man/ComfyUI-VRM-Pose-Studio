@@ -85,7 +85,7 @@
         "Node name for S&R": "UNETLoader"
       },
       "widgets_values": [
-        "diffusion_models\\anima_baseV10.safetensors",
+        "anima_baseV10.safetensors",
         "default"
       ]
     },
@@ -313,7 +313,7 @@
         "Node name for S&R": "BV Regional Anima LLLite"
       },
       "widgets_values": [
-        "model_patches\\anima-lllite-regional-exp-v3.safetensors",
+        "anima-lllite-regional-exp-v3.safetensors",
         1,
         0,
         1
@@ -348,7 +348,7 @@
         "Node name for S&R": "ModelPatchLoader"
       },
       "widgets_values": [
-        "model_patches\\anima-lllite-any-test-like-v2.safetensors"
+        "anima-lllite-any-test-like-v2.safetensors"
       ]
     },
     {

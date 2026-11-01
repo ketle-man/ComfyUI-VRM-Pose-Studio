@@ -104,7 +104,7 @@
         "Node name for S&R": "CheckpointLoaderSimple"
       },
       "widgets_values": [
-        "Illustrious\\flanimeIllustriousXL_v20.safetensors"
+        "flanimeIllustriousXL_v20.safetensors"
       ]
     },
     {

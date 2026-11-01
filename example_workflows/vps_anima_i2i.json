@@ -84,7 +84,7 @@
         "Node name for S&R": "UNETLoader"
       },
       "widgets_values": [
-        "diffusion_models\\anima_baseV10.safetensors",
+        "anima_baseV10.safetensors",
         "default"
       ]
     },
