@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VRM Pose Studio</title>
+    <link rel="icon" type="image/svg+xml" href="/vps_static/favicon.svg">
+    <link rel="stylesheet" href="/vps_static/css/main.css">
+</head>
+<body>
+    <header class="vps-header">
+        <h1 class="vps-title">VRM Pose Studio</h1>
+        <nav class="vps-tabs" id="vps-tabs"></nav>
+        <div class="vps-header-right" id="vps-header-right"></div>
+    </header>
+
+    <main class="vps-main">
+        <section id="vps-tab-studio" class="vps-tab-content vps-studio">
+            <aside id="vps-left" class="vps-panel vps-left"></aside>
+            <div class="vps-resizer" data-prop="--vps-left-w" data-dir="1" data-axis="x" style="grid-area: rl"></div>
+            <div id="vps-viewport-wrap" class="vps-viewport-wrap">
+                <div id="vps-viewport" class="vps-viewport"></div>
+            </div>
+            <div class="vps-resizer vps-ip-resizer" data-prop="--vps-ip-w" data-dir="-1" data-axis="x" style="grid-area: ri"></div>
+            <aside id="vps-ip" class="vps-panel vps-ip-panel"></aside>
+            <div class="vps-resizer" data-prop="--vps-right-w" data-dir="-1" data-axis="x" style="grid-area: rr"></div>
+            <aside id="vps-right" class="vps-panel vps-right"></aside>
+            <div class="vps-resizer horizontal" data-prop="--vps-timeline-h" data-dir="-1" data-axis="y" style="grid-area: rt"></div>
+            <div id="vps-timeline" class="vps-timeline"></div>
+        </section>
+        <section id="vps-tab-regional" class="vps-tab-content vps-regional"></section>
+        <section id="vps-tab-generate" class="vps-tab-content vps-generate"></section>
+        <section id="vps-tab-renders" class="vps-tab-content vps-renders"></section>
+        <section id="vps-tab-help" class="vps-tab-content vps-help-wrap"></section>
+    </main>
+
+    <div id="vps-toast" class="vps-toast"></div>
+    <script type="module" src="/vps_static/js/app.js"></script>
+</body>
+</html>

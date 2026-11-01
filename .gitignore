@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+data/
+assets/*/*
+!assets/*/.gitkeep
+# 開発メモ(リポジトリ対象外)
+DEVLOG.md
+ROADMAP.md

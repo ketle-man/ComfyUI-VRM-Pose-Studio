@@ -1,0 +1,13 @@
+[project]
+name = "comfyui-vrm-pose-studio"
+description = "SPA 3D pose / scene / video studio for VRM models (multi-model, props, backgrounds, keyframe video) with ComfyUI nodes"
+version = "0.1.0"
+license = {file = "LICENSE"}
+dependencies = ["imageio-ffmpeg"]
+
+[project.urls]
+Repository = "https://github.com/ketle-man/ComfyUI-VRM-Pose-Studio"
+
+[tool.comfy]
+PublisherId = "statsu"
+DisplayName = "comfyui-vrm-pose-studio"
