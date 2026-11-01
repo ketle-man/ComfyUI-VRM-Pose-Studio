@@ -365,9 +365,9 @@ const DICT = {
 
 let _lang = "en";
 
+// 言語は設定(⚙ の「言語」)で選んだものだけを使い、未設定なら英語(ブラウザの言語には自動で合わせない)
 export function initI18n(lang) {
-    const nav = (navigator.language || "en").toLowerCase().split(/[-_]/)[0];
-    _lang = DICT[lang] ? lang : DICT[nav] ? nav : "en";
+    _lang = DICT[lang] ? lang : "en";
     document.documentElement.lang = _lang;
     return _lang;
 }

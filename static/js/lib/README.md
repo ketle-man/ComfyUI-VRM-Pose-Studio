@@ -3,6 +3,7 @@
 
 - bvh_retarget.js / mhr_bind_data.js … BVH(SAM3DBody / CMU / Daz)→ VRM ヒューマノイドのリターゲット
 - bvh_import_dialog.js / i18n.js      … BVH 取り込み設定ダイアログ(i18n.js は base の makeT)
+  ※ i18n.js だけは 1 か所変更: 言語をブラウザの言語(navigator.language)で決めず、スタジオの設定(<html lang>)に従う。上書きコピーしたら直し直すこと
 - lip_sync.js                         … テキスト→口形タイムライン・音声の音量解析
 - image_pose.js / image_pose_solver.js / comfy_api.js … 画像・動画 → SAM 3D Body(ComfyUI ネイティブノード)→ VRM ポーズ。
   使うのは runSam3d / runSam3dVideo / checkSam3dAvailable とソルバーだけ(buildImagePosePanel は使わない)
