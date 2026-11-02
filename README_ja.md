@@ -78,6 +78,14 @@ ComfyUI のサーバー上で SPA として動き(`http://<ComfyUI>/vps`)、書�
 - サンプルのモデル名(`anima_baseV10.safetensors`、`flanimeIllustriousXL_v20.safetensors` など)は作者の環境のものです。読み込んだら手元のファイルに選び直してください(公式の Anima は `anima-base-v1.0.safetensors`)。
 - 「LI ノードへ送る」は、ComfyUI のトップメニューからスタジオを開いたときだけ使えます。
 
+## セキュリティ
+
+VRM Pose Studio には独自のログイン機能がなく、ComfyUI にも認証がありません。ComfyUI のサーバーに届く人なら誰でも `/vps` を開いて、その API(アセットのアップロード・削除、プロジェクトと書き出しの保存・削除、設定の変更)を使えます。
+
+- ComfyUI は既定では `127.0.0.1` だけで待ち受けるので、届くのはこの PC だけです。
+- `--listen` を付けて LAN やインターネットに公開する場合は、信頼できるネットワークの中だけで使うか、認証付きのリバースプロキシや VPN を前に置いてください。
+- セリフからの音声作成(VOICEVOX / Lemonade)の接続先は、この PC(`localhost` / `127.0.0.1` / `::1`)だけです。それ以外の接続先はサーバー側で拒否します。
+
 ## ComfyUI ノード
 
 | ノード | 入出力 |

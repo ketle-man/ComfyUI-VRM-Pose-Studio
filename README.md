@@ -78,6 +78,14 @@ If 3D Pose Editor is installed in the same `custom_nodes` as `comfyui-vrm-pose-e
 - The model names in the samples (`anima_baseV10.safetensors`, `flanimeIllustriousXL_v20.safetensors`, etc.) are from the author's setup. Pick your own files after loading a sample (the official Anima file is `anima-base-v1.0.safetensors`).
 - "Send to LI node" only works when the studio was opened from ComfyUI's top menu.
 
+## Security
+
+VRM Pose Studio has no login of its own and relies on ComfyUI, which has no authentication either. Anyone who can reach your ComfyUI server can open `/vps` and use its API: upload and delete assets, save and delete projects and renders, and change settings.
+
+- By default ComfyUI only listens on `127.0.0.1`, so only this PC can reach it.
+- If you start ComfyUI with `--listen` (LAN or internet), only do so on a trusted network, or put an authenticating reverse proxy / VPN in front of it.
+- Speech creation (VOICEVOX / Lemonade) only connects to this PC (`localhost` / `127.0.0.1` / `::1`); other hosts are rejected by the server.
+
 ## ComfyUI nodes
 
 | Node | Inputs / outputs |
