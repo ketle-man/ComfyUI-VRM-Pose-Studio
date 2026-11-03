@@ -89,17 +89,28 @@ export function buildInspector(root, studio) {
     const commit = () => studio.commitEdit();
 
     // ---------------------------------------------------------------- 共通
-    function transformSection(o3d) {
+    // perAxis: スケールを X/Y/Z 別にも表示する(プロップ・図形・画像板)。等倍スライダーは X を基準に 3 軸を同じ倍率で変え、軸の比率は保つ
+    function transformSection(o3d, { perAxis = false } = {}) {
         const e = new THREE.Euler();
         const pos = vec3(t("position"), () => o3d.position.toArray(), v => o3d.position.fromArray(v), { onChange: commit });
         const rot = vec3(t("rotation"), () => { e.setFromQuaternion(o3d.quaternion); return [e.x / RAD, e.y / RAD, e.z / RAD]; },
             v => o3d.quaternion.setFromEuler(e.set(v[0] * RAD, v[1] * RAD, v[2] * RAD)), { step: 1, onChange: commit });
         const scl = slider({
             label: t("uniformScale"), min: 0.05, max: 5, step: 0.01, value: o3d.scale.x,
-            onInput: v => o3d.scale.setScalar(v), onChange: commit,
+            onInput: v => {
+                if (perAxis && Math.abs(o3d.scale.x) > 1e-6) o3d.scale.multiplyScalar(v / o3d.scale.x);
+                else o3d.scale.setScalar(v);
+                sclXyz?.refresh();
+            },
+            onChange: commit,
         });
+        const sclXyz = perAxis ? vec3(t("scale"), () => o3d.scale.toArray(), v => {
+            o3d.scale.fromArray(v.map(x => (Math.abs(x) < 0.001 ? 0.001 : x)));
+            scl.setValue(o3d.scale.x);
+        }, { onChange: commit }) : null;
         refreshers.push(pos.refresh, rot.refresh, () => scl.setValue(o3d.scale.x));
-        return section(t("transform"), pos, rot, scl);
+        if (sclXyz) refreshers.push(sclXyz.refresh);
+        return section(t("transform"), pos, rot, scl, ...(sclXyz ? [sclXyz] : []));
     }
 
     function buildObjectCommon(obj) {
@@ -112,7 +123,7 @@ export function buildInspector(root, studio) {
                 el("button.vps-btn.small.danger", { onclick: () => studio.removeObject(obj.id) }, `🗑 ${t("delete")}`),
             ),
         ));
-        body.append(transformSection(obj.root));
+        body.append(transformSection(obj.root, { perAxis: obj.type === "prop" }));
     }
 
     // ---------------------------------------------------------------- 人物
