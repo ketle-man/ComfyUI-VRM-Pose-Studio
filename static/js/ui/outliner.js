@@ -50,9 +50,9 @@ export function buildOutliner(root, studio) {
         PRIMITIVES.map(s => el("button.vps-menu-item", {
             onclick: async () => {
                 shapeMenu.classList.add("hidden");
-                await studio.addObject({ type: "prop", name: s, src: { kind: "primitive", shape: s } });
+                await studio.addObject({ type: "prop", name: t("shape_" + s), src: { kind: "primitive", shape: s } });
             },
-        }, s)));
+        }, t("shape_" + s))));
     const lightMenu = el("div.vps-menu.hidden",
         LIGHT_KINDS.map(k => el("button.vps-menu-item", {
             onclick: async () => { lightMenu.classList.add("hidden"); await addLight(studio, k); },
