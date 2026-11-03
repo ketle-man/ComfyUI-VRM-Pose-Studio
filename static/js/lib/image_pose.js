@@ -13,6 +13,48 @@ import {
 } from "./image_pose_solver.js";
 import { bvhTextToVrmaBuffer, peekBvh } from "./bvh_retarget.js";
 import { askBvhImportOptions } from "./bvh_import_dialog.js";
+import { makeT } from "./i18n.js";
+
+// 実行中の状態・エラーの文言(en が基準)。言語は呼ぶたびに決める(モジュール読込時にはまだ言語が決まっていないため)
+const STRINGS = {
+    en: {
+        noNodes: "ComfyUI has no native SAM3D Body nodes ({missing}). Update ComfyUI to 0.38 or later",
+        noModel: "No SAM3D Body model found. Put {model} in models/detection/",
+        viewFailed: "Could not get the ComfyUI output: {file} (HTTP {status})",
+        uploadFailed: "Could not send the file to ComfyUI (HTTP {status})",
+        rejected: "ComfyUI did not accept the workflow: {detail}",
+        timeout: "ComfyUI did not finish within {min} min",
+        elapsed: "{msg} ({sec} s)",
+        execError: "ComfyUI execution error: {msg}",
+        unknown: "unknown",
+        noOutput: "ComfyUI finished but produced no 3D file (maybe no person was detected)",
+        handRetry: "Hand refinement failed in ComfyUI, retrying with it turned off…",
+        sendImage: "Sending the image to ComfyUI…",
+        runImage: "Running SAM3D Body… the first run can take tens of seconds to load the model",
+        fetching: "Fetching the result…",
+        sendVideo: "Sending the video to ComfyUI…",
+        runVideo: "Estimating every frame of the video with SAM3D Body… takes longer the more frames there are",
+    },
+    ja: {
+        noNodes: "ComfyUI に SAM3D Body のネイティブノードがありません({missing})。ComfyUI 0.38 以降に更新してください",
+        noModel: "SAM3D Body のモデルが見つかりません。models/detection/ に {model} を置いてください",
+        viewFailed: "ComfyUI の出力を取得できません: {file} (HTTP {status})",
+        uploadFailed: "ComfyUI へのファイル送信に失敗しました (HTTP {status})",
+        rejected: "ComfyUI がワークフローを受け付けませんでした: {detail}",
+        timeout: "ComfyUI の実行が {min} 分以内に終わりませんでした",
+        elapsed: "{msg}({sec} 秒)",
+        execError: "ComfyUI の実行エラー: {msg}",
+        unknown: "不明",
+        noOutput: "ComfyUI の実行は終わりましたが 3D ファイルが出力されませんでした(人物が検出されなかった可能性があります)",
+        handRetry: "手の補正(hand refinement)で ComfyUI がエラーになったため、オフにしてやり直します…",
+        sendImage: "画像を ComfyUI に送信中…",
+        runImage: "SAM3D Body を実行中…初回はモデル読み込みで数十秒かかることがあります",
+        fetching: "結果を取得中…",
+        sendVideo: "動画を ComfyUI に送信中…",
+        runVideo: "SAM3D Body で動画の全フレームを推定中…フレーム数に比例して時間がかかります",
+    },
+};
+const tr = (key, vars) => makeT(STRINGS)(key, vars);
 
 const REQUIRED_NODES = ["SAM3DBody_Loader", "SAM3DBody_Predict", "BuildPoseFile", "SaveGLB"];
 const VIDEO_NODES = ["LoadVideo", "Video Slice", "GetVideoComponents"];
@@ -41,11 +83,11 @@ export async function checkSam3dAvailable() {
     const info = await getJson("/object_info");
     const missing = REQUIRED_NODES.filter(n => !info[n]);
     if (missing.length) {
-        return { ok: false, models: [], message: `ComfyUI に SAM3D Body のネイティブノードがありません(${missing.join(", ")})。ComfyUI 0.38 以降に更新してください` };
+        return { ok: false, models: [], message: tr("noNodes", { missing: missing.join(", ") }) };
     }
     const models = comboOptions(info.SAM3DBody_Loader?.input?.required?.model_file);
     if (!models.length) {
-        return { ok: false, models, message: `SAM3D Body のモデルが見つかりません。models/detection/ に ${PREFERRED_MODEL} を置いてください` };
+        return { ok: false, models, message: tr("noModel", { model: PREFERRED_MODEL }) };
     }
     return { ok: true, models, message: "", videoOk: VIDEO_NODES.every(n => info[n]) };
 }
@@ -108,7 +150,7 @@ function buildVideoWorkflow(videoName, modelFile, prefix, { startSec, durationSe
 async function downloadOutput(o) {
     const q = new URLSearchParams({ filename: o.filename, subfolder: o.subfolder ?? "", type: o.type ?? "output" });
     const res = await fetchApi(`/view?${q}`);
-    if (!res.ok) throw new Error(`ComfyUI の出力を取得できません: ${o.filename} (HTTP ${res.status})`);
+    if (!res.ok) throw new Error(tr("viewFailed", { file: o.filename, status: res.status }));
     return res.arrayBuffer();
 }
 
@@ -118,7 +160,7 @@ async function uploadInput(blob, name, signal) {
     form.append("image", blob, name);
     form.append("overwrite", "true");
     const up = await fetchApi("/upload/image", { method: "POST", body: form, signal });
-    if (!up.ok) throw new Error(`ComfyUI へのファイル送信に失敗しました (HTTP ${up.status})`);
+    if (!up.ok) throw new Error(tr("uploadFailed", { status: up.status }));
     const uploaded = await up.json();
     return uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
 }
@@ -135,26 +177,26 @@ async function queueAndWait(workflow, outputIds, runningMsg, onStatus, signal, t
     if (!res.ok || !submitted.prompt_id) {
         const nodeErr = Object.values(submitted.node_errors ?? {})[0]?.errors?.[0];
         const detail = nodeErr ? `${nodeErr.message}: ${nodeErr.details ?? ""}` : (submitted.error?.message ?? `HTTP ${res.status}`);
-        throw new Error(`ComfyUI がワークフローを受け付けませんでした: ${detail}`);
+        throw new Error(tr("rejected", { detail }));
     }
 
     const started = Date.now();
     for (;;) {
         if (signal?.aborted) throw new DOMException("aborted", "AbortError");
         const sec = (Date.now() - started) / 1000;
-        if (sec > timeoutMin * 60) throw new Error(`ComfyUI の実行が ${timeoutMin} 分以内に終わりませんでした`);
-        onStatus(`${runningMsg}(${Math.round(sec)} 秒)`);
+        if (sec > timeoutMin * 60) throw new Error(tr("timeout", { min: timeoutMin }));
+        onStatus(tr("elapsed", { msg: runningMsg, sec: Math.round(sec) }));
         await new Promise(r => setTimeout(r, 1000));
         const hist = await getJson(`/history/${submitted.prompt_id}`);
         const entry = hist[submitted.prompt_id];
         if (!entry) continue;
         if (entry.status?.status_str === "error") {
             const err = entry.status.messages?.find(m => m[0] === "execution_error")?.[1];
-            throw new Error(`ComfyUI の実行エラー: ${String(err?.exception_message ?? "不明")}`);
+            throw new Error(tr("execError", { msg: String(err?.exception_message ?? tr("unknown")) }));
         }
         const outs = outputIds.map(id => entry.outputs?.[id]?.["3d"]?.[0]);
         if (outs.every(Boolean)) return outs;
-        if (entry.status?.completed) throw new Error("ComfyUI の実行は終わりましたが 3D ファイルが出力されませんでした(人物が検出されなかった可能性があります)");
+        if (entry.status?.completed) throw new Error(tr("noOutput"));
     }
 }
 
@@ -165,33 +207,33 @@ async function withHandFallback(run, onStatus) {
         return await run(true);
     } catch (e) {
         if (e?.name === "AbortError" || !/dtype|Half/i.test(String(e?.message))) throw e;
-        onStatus("手の補正(hand refinement)で ComfyUI がエラーになったため、オフにしてやり直します…");
+        onStatus(tr("handRetry"));
         return run(false);
     }
 }
 
 // 画像を ComfyUI に渡して SAM3D Body を実行し、openpose / body_mesh の 2 種類の GLB を受け取る
 export async function runSam3d(imageBlob, imageExt, modelFile, onStatus, signal) {
-    onStatus("画像を ComfyUI に送信中…");
+    onStatus(tr("sendImage"));
     const imageName = await uploadInput(imageBlob, `vrmpose_sam_input.${imageExt || "png"}`, signal);
     const prefix = `3d/vrmpose_sam_${Date.now()}`;
     const [op, mesh] = await withHandFallback(hand => queueAndWait(
         buildWorkflow(imageName, modelFile, prefix, hand), ["6", "7"],
-        "SAM3D Body を実行中…初回はモデル読み込みで数十秒かかることがあります", onStatus, signal), onStatus);
-    onStatus("結果を取得中…");
+        tr("runImage"), onStatus, signal), onStatus);
+    onStatus(tr("fetching"));
     const [openpose, meshBuf] = await Promise.all([downloadOutput(op), downloadOutput(mesh)]);
     return { openpose, mesh: meshBuf };
 }
 
 // 動画を ComfyUI に渡して SAM3D Body を全フレームに実行し、BVH(テキスト)を受け取る。range: { startSec, durationSec }
 export async function runSam3dVideo(videoBlob, videoExt, modelFile, range, onStatus, signal) {
-    onStatus("動画を ComfyUI に送信中…");
+    onStatus(tr("sendVideo"));
     const videoName = await uploadInput(videoBlob, `vrmpose_sam_input.${videoExt || "mp4"}`, signal);
     const prefix = `3d/vrmpose_motion_${Date.now()}`;
     const [bvh] = await withHandFallback(hand => queueAndWait(
         buildVideoWorkflow(videoName, modelFile, prefix, { ...range, handRefine: hand }), ["7"],
-        "SAM3D Body で動画の全フレームを推定中…フレーム数に比例して時間がかかります", onStatus, signal, 60), onStatus);
-    onStatus("結果を取得中…");
+        tr("runVideo"), onStatus, signal, 60), onStatus);
+    onStatus(tr("fetching"));
     return { text: new TextDecoder().decode(await downloadOutput(bvh)), filename: bvh.filename };
 }
 

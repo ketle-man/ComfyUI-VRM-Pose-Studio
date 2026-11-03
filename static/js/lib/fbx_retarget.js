@@ -8,6 +8,13 @@
 
 import * as THREE from "../../vendor/three.module.js";
 import { FBXLoader } from "../../vendor/FBXLoader.js";
+import { makeT } from "./i18n.js";
+
+const STRINGS = {
+    en: { noAnim: "The FBX has no animation", noHips: "No hips bone found in the FBX" },
+    ja: { noAnim: "FBX にアニメーションがありません", noHips: "FBX に腰(Hips)のボーンが見つかりません" },
+};
+const tr = (key, vars) => makeT(STRINGS)(key, vars);
 
 // Mixamo / MotionBuilder(HumanIK)の名前 → VRM Humanoid
 const RIG_MAP = {
@@ -49,7 +56,7 @@ export async function loadFbx(url) {
     const asset = await new FBXLoader().loadAsync(url);
     asset.updateWorldMatrix(true, true);
     const takes = asset.animations.map((a, i) => ({ index: i, name: a.name || `Take ${i + 1}`, duration: a.duration })).filter(t => asset.animations[t.index].tracks.length);
-    if (!takes.length) throw new Error("FBX にアニメーションがありません");
+    if (!takes.length) throw new Error(tr("noAnim"));
     return { asset, takes };
 }
 
@@ -57,7 +64,7 @@ export async function loadFbx(url) {
 // rootMotion: false なら腰の水平移動を消して、その場で動かす(最初のフレームの位置に固定)
 export function fbxToClip(asset, take, vrm, { rootMotion = true } = {}) {
     const src = asset.animations[take];
-    if (!src?.tracks.length) throw new Error("FBX にアニメーションがありません");
+    if (!src?.tracks.length) throw new Error(tr("noAnim"));
 
     const humanoid = vrm.humanoid;
     const vrmBones = Object.keys(humanoid.humanBones);
@@ -67,7 +74,7 @@ export function fbxToClip(asset, take, vrm, { rootMotion = true } = {}) {
         if (b && humanoid.getNormalizedBoneNode(b) && ![...nodes.values()].includes(b)) nodes.set(o.name, b);
     });
     const hipsNode = [...nodes].find(([, b]) => b === "hips")?.[0];
-    if (!hipsNode) throw new Error("FBX に腰(Hips)のボーンが見つかりません");
+    if (!hipsNode) throw new Error(tr("noHips"));
 
     // 腰の高さの比で位置を合わせる
     const v = new THREE.Vector3();
