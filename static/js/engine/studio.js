@@ -44,6 +44,8 @@ export class Studio extends EventTarget {
         this.objects = new Map();     // id → SceneObject(挿入順 = 表示順)
         this.selection = null;        // { id, bone? } / { id: カメラ id } / { id: "scene" }
         this.output = { width: 1024, height: 1024 };
+        this.ccFrame = null;        // Comic Creator のコマ枠(setCcFrame)
+        this._projectOutput = null; // コマ枠の適用中に退避したプロジェクトの出力サイズ
         this.audios = [];             // 音声トラック [{ id, name, url, source, path, offset, duration, volume, muted }]
         this.regional = null;         // リージョンタブの設定(ui/regional.js が中身を持つ。プロジェクトに保存、undo の対象外)
         this.projectName = "untitled";
@@ -1045,11 +1047,39 @@ export class Studio extends EventTarget {
     // ================================================================ output / env
 
     setOutputSize(w, h) {
-        this.output = { width: Math.max(64, Math.round(w)), height: Math.max(64, Math.round(h)) };
+        const size = { width: Math.max(64, Math.round(w)), height: Math.max(64, Math.round(h)) };
+        // コマ枠の適用中は、描画・撮影のサイズはコマのまま。プロジェクトの出力サイズだけを更新する
+        if (this.ccFrame) { this._projectOutput = size; this._scheduleHistory(); return; }
+        this.output = size;
         this.vp.setOutputSize(this.output.width, this.output.height);
         this._emit("output");
         this._scheduleHistory();
     }
+
+    // Comic Creator(CC) から開いたときのコマ枠: { width, height, points: [[x, y], …](0〜1、外接矩形基準), label(コマ名) } | null。
+    // 適用中は描画・撮影のサイズ(this.output)をコマのサイズにし、プロジェクトの出力サイズは _projectOutput に退避する。
+    // serialize() は退避したほうを書くので、保存・undo 履歴・未保存判定にはコマのサイズが入らない
+    setCcFrame(frame) {
+        if (frame) {
+            if (!this.ccFrame) this._projectOutput = { ...this.output };
+            const width = Math.max(64, Math.round(frame.width)), height = Math.max(64, Math.round(frame.height));
+            const points = Array.from(frame.points ?? [], p => [Number(p[0]) || 0, Number(p[1]) || 0]);
+            const label = typeof frame.label === "string" ? frame.label.slice(0, 40) : "";
+            this.ccFrame = { width, height, points, label };
+            this.output = { width, height };
+        } else {
+            if (!this.ccFrame) return;
+            this.ccFrame = null;
+            this.output = { ...this._projectOutput };
+            this._projectOutput = null;
+        }
+        this.vp.setOutputSize(this.output.width, this.output.height);
+        this._emit("output");
+        this._emit("ccframe");
+    }
+
+    // 保存されるほうの出力サイズ(コマ枠の適用中は退避した値)
+    get projectOutput() { return this.ccFrame ? this._projectOutput : this.output; }
 
     async setEnv(patch) {
         const next = structuredClone(this.env.state);
@@ -1077,7 +1107,7 @@ export class Studio extends EventTarget {
             app: "vrm-pose-studio",
             version: PROJECT_VERSION,
             name: this.projectName,
-            output: { ...this.output },
+            output: { ...this.projectOutput },
             env: structuredClone(this.env.state),
             camera: withCamera ? this.vp.getCameraState() : undefined,
             cameras: this.cams.serialize().map(c => (withCamera ? c : { ...c, state: undefined })),
@@ -1135,7 +1165,11 @@ export class Studio extends EventTarget {
             this.objects = m;
         }
         this.projectName = project.name ?? this.projectName;
-        if (project.output) { this.output = { ...project.output }; this.vp.setOutputSize(this.output.width, this.output.height); }
+        if (project.output) {
+            // コマ枠の適用中は描画サイズを変えず、プロジェクトの出力サイズとして退避しておく
+            if (this.ccFrame) this._projectOutput = { ...project.output };
+            else { this.output = { ...project.output }; this.vp.setOutputSize(this.output.width, this.output.height); }
+        }
         await this.env.apply(project.env ?? DEFAULT_ENV);
         // 旧プロジェクト(カメラ 1 台)は camera の視点を既定のカメラとして引き継ぐ
         const camList = project.cameras?.length ? project.cameras

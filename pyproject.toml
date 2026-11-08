@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-vrm-pose-studio"
 description = "SPA 3D pose / scene / video studio for VRM models (multi-model, props, backgrounds, keyframe video) with ComfyUI nodes"
-version = "0.1.1"
+version = "0.2.0"
 license = {file = "LICENSE"}
 dependencies = ["imageio-ffmpeg"]
 

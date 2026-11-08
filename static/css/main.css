@@ -130,7 +130,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .vps-viewport-wrap.drag::after {
     content: ""; position: absolute; inset: 6px; border: 2px dashed var(--vps-primary); border-radius: 8px; pointer-events: none;
 }
-.vps-viewport { position: absolute; inset: 40px 0 0 0; display: flex; align-items: center; justify-content: center; }
+.vps-viewport { position: absolute; inset: 40px 0 0 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+/* 出力サイズの枠。外側(出力に写らない部分)を暗い半透明で覆う */
+.vps-passepartout { position: absolute; pointer-events: none; z-index: 1; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35), 0 0 0 9999px rgba(8, 10, 16, 0.6); }
+.vps-viewport-wrap.monitor .vps-passepartout { box-shadow: 0 0 0 2px #7fd8ff, 0 0 0 9999px rgba(8, 10, 16, 0.6); }
 .vps-canvas { display: block; box-shadow: 0 0 0 1px #000, 0 6px 24px rgba(0,0,0,0.5); }
 .vps-vp-toolbar {
     position: absolute; top: 0; left: 0; right: 0; height: 40px; display: flex; align-items: center; gap: 4px;
@@ -459,3 +462,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @media (max-width: 1440px) {
     .vps-header-right .vps-btn-label { display: none; }
 }
+
+/* Comic Creator 連携: コマ枠(表示専用。撮影には写らない) */
+.vps-cc-frame { position: absolute; pointer-events: none; z-index: 2; }
+.vps-cc-frame-shade { fill: rgba(128, 128, 128, 0.35); } /* 暗い背景(透過)でも明るい背景でも外側と分かるようにグレー */
+.vps-cc-frame-tag rect { fill: #ff6b6b; }
+.vps-cc-frame-tag text { fill: #fff; font-size: 12px; font-weight: 600; dominant-baseline: central; }
+.vps-cc-frame-line { fill: none; stroke: #ff6b6b; stroke-width: 2; stroke-dasharray: 6 4; }
+.vps-viewport-wrap.monitor .vps-cc-frame { display: none; }
+.vps-output-size [hidden] { display: none !important; }
+.vps-output-size:has(.vps-cc-badge:not([hidden])) .vps-output-x { display: none; }
+.vps-cc-badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 2px 1px 6px; border: 1px solid #ff6b6b; border-radius: 4px; color: #ffb3b3; white-space: nowrap; }

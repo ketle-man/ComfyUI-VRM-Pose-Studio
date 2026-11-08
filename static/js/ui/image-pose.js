@@ -144,12 +144,12 @@ export function buildImagePosePanel(root, studio, { onToggle } = {}) {
     const syncChk = el("input", { type: "checkbox", checked: true, onchange: () => syncVideo() });
     const syncRow = el("label.vps-check.hidden", { title: t("ipSyncHint") }, syncChk, el("span", t("ipSync")));
 
-    // 重ねる絵はキャンバスと同じ位置・大きさにする(画像は縦横比を保って中央)
+    // 重ねる絵は出力サイズの枠と同じ位置・大きさにする(画像は縦横比を保って中央)
     function syncOverlay() {
-        const c = studio.vp.canvas;
+        const c = studio.vp.canvas, fr = studio.vp.frameRect;
         overlay.hidden = !(isOpen() && state.overlay && state.file);
         Object.assign(overlay.style, {
-            left: `${c.offsetLeft}px`, top: `${c.offsetTop}px`, width: `${c.offsetWidth}px`, height: `${c.offsetHeight}px`,
+            left: `${c.offsetLeft + fr.x}px`, top: `${c.offsetTop + fr.y}px`, width: `${fr.width}px`, height: `${fr.height}px`,
             opacity: state.overlayOpacity,
             transform: state.opts.mirror ? "scaleX(-1)" : "",
         });

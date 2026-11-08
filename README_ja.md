@@ -35,8 +35,10 @@ ComfyUI のサーバー上で SPA として動き(`http://<ComfyUI>/vps`)、書�
 | タイムライン | オブジェクト・カメラ・背景/ライト(色・強さ・向き・露出を補間)ごとのキーフレーム、オートキー、補間(直線・なめらか・ステップ)、キーの移動・コピー&貼り付け(他の人物へも)、IN/OUT 範囲、タイムストレッチ(⏱ 伸縮: 対象・範囲・長さ〈フレーム数か %〉を指定。3D Pose Editor と同じ計算で、重なったキーは間引く。音声の開始位置も合わせる)、音声トラック(複数・波形表示。0 秒より前には置けない)。人物は ▸ で「目」「まばたき」「口パク」の子トラックを開いて別々にキーを打てる。表示の絞り込み(すべて / 人物 / 環境 / 音声)、🗑 削除モード(キーをクリック・なぞって消す) |
 | 音声の分割 | 「✂ 分割」で波形のダイアログを開き、拡大・試聴・フレームへの吸着をしながら分割位置を決める(B キーは再生位置ですぐ分割)。分けたクリップは同じ行で別々に動かせ、口パク・書き出しも切った範囲だけを使う |
 | 静止画 | 📸 で現在フレームのプレビューを見て、「PNG をダウンロード」「マスク PNG」(背景透過)か「ComfyUI に書き出し」(input/vrm_pose_studio/) |
+| Comic Creator | [ComfyUI Comic Creator](https://github.com/ketle-man/comfyui-comic-creator) で 3Dポーズの 🎛 Editor を VRM Pose Studio に切り替えると、選んだマンガのコマの形を赤い点線の枠(コマ名のタグ付き)にしてスタジオが開き、出力サイズもコマに固定されます(プロジェクトには保存されません。「解除」で元に戻ります)。「📤 CCのコマへ送る」で今のフレームをそのコマへ挿入。CC から開いたときは背景が透過・地面が非表示で始まります |
 | 書き出し(動画) | 連番 PNG、人物・プロップのマスク。動画は OUTPUT で WebM(VP9、透明背景ならアルファ付き)・MP4(H.264)・GIF(透明背景なら透過、長辺 480px)を選んで作る(WebM / MP4 は音声合成可)。「Save to ComfyUI output」で output/vrm_pose_studio/ に保存、オフならブラウザでダウンロード。「動画のみ」なら連番 PNG を残さない。物理は dt=1/fps で決定論的に計算 |
 | 操作性 | Undo/Redo、プロジェクト保存(サムネイル付き)、ドラッグ&ドロップ、ショートカット、パネル幅の変更、日本語/英語 |
+| 出力サイズの枠 | ビューポートでは出力サイズを枠で示し、枠の外側も暗い半透明で覆って描くので、画面のすぐ外に何があるかが分かります。静止画・動画・送る画像は枠の中だけです |
 | 操作環境設定(右上 ⚙) | マウス(視点操作のボタン割り当て・ホイール / Ctrl+右ドラッグのズーム・Alt+左ドラッグズーム・各速度)、アンチエイリアス強化、既定モデル(新規作成時・起動時に自動追加)、言語。`data/settings.json` に保存 |
 
 ## インストール
@@ -73,10 +75,12 @@ ComfyUI のサーバー上で SPA として動き(`http://<ComfyUI>/vps`)、書�
 | SDXL で生成(サンプル) | ComfyUI 標準 | Illustrious 系のチェックポイント → `models/checkpoints/`、`CN-anytest4_illustrious2_A` → `models/controlnet/`([2vXpSwA7/iroiro-lora](https://huggingface.co/2vXpSwA7/iroiro-lora/tree/main/test_controlnet2)) |
 | セリフから音声を作成 | [VOICEVOX](https://voicevox.hiroshiba.jp/) か [Lemonade](https://lemonade-server.ai/)(Kokoro)をこの PC で起動 | — |
 | 3D Pose Editor との共有 | [comfyui-vrm-pose-editor](https://github.com/ketle-man/comfyui-vrm-pose-editor)(任意) | — |
+| Comic Creator との連携 | [ComfyUI Comic Creator](https://github.com/ketle-man/comfyui-comic-creator)(任意。設定タブの「3Dポーズ エディタ」で VRM Pose Studio を選ぶ) | — |
 
 - Anima と Anima LLLite のモデルは CircleStone Labs の**非商用ライセンス**です([LICENSE](https://huggingface.co/circlestone-labs/Anima/blob/main/LICENSE.md))。SAM 3D Body のモデルも独自のライセンス(SAM License)です。どちらもこのリポジトリには含まれず、ダウンロードするときに各ライセンスに同意することになります。
 - サンプルのモデル名(`anima_baseV10.safetensors`、`flanimeIllustriousXL_v20.safetensors` など)は作者の環境のものです。読み込んだら手元のファイルに選び直してください(公式の Anima は `anima-base-v1.0.safetensors`)。
 - 「LI ノードへ送る」は、ComfyUI のトップメニューからスタジオを開いたときだけ使えます。
+- Comic Creator から開いたときは、同じボタンが「CCのコマへ送る」になり、画像を Comic Creator へ送ります(input/ にはアップロードしません)。
 
 ## セキュリティ
 
@@ -126,7 +130,7 @@ ComfyUI-VRM-Pose-Studio/
 │  └─ js/
 │     ├─ app.js           レイアウト・ヘッダー・ショートカット・D&D
 │     ├─ engine/          viewport / objects(Actor・Prop)/ cameras / environment / timeline / studio / exporter
-│     ├─ ui/              outliner / inspector / timeline-ui / assets / export-ui(静止画・動画)/ settings / motion / image-pose / generate / regional(リージョン)/ comfy-run(ComfyUI 実行の共通処理)/ audio-split(波形で分割)/ time-stretch / help
+│     ├─ ui/              outliner / inspector / timeline-ui / assets / export-ui(静止画・動画)/ settings / motion / cc-frame(Comic Creator のコマ枠)/ image-pose / generate / regional(リージョン)/ comfy-run(ComfyUI 実行の共通処理)/ audio-split(波形で分割)/ time-stretch / help
 │     └─ lib/             3D Pose Editor / Workflow Studio から無変更でコピー(BVH・リップシンク・SAM3D・ワークフロー変換)
 ├─ web/comfyui/vps_extension.js   アクションバーのボタン・ノードのボタン・LI ノードへ送る受け口
 ├─ example_workflows/     サンプルワークフロー(生成タブに 📦 sample/ として表示・ComfyUI のテンプレートにも出る)

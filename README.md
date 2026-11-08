@@ -35,8 +35,10 @@ It runs as a single-page app on your ComfyUI server (`http://<ComfyUI>/vps`), an
 | Timeline | Keyframes per object, camera and background/lights (color, intensity, direction and exposure are interpolated), auto key, easing (linear / smooth / step), moving, copying and pasting keys (also onto other characters), IN/OUT range, time stretch (⏱ Stretch: target, range and length in frames or %; same math as 3D Pose Editor, overlapping keys are thinned, audio offsets follow), audio tracks (multiple, with waveforms; cannot start before 0 s). Characters expand with ▸ into "Eyes", "Blink" and "Lip sync" sub-tracks with their own keys. Filter view (all / characters / environment / audio), 🗑 delete mode (click or drag over keys to delete) |
 | Audio split | "✂ Split" opens a waveform dialog to choose the split point with zoom, preview and frame snapping (the B key splits at the playhead instantly). Split clips can be moved separately on the same row, and lip sync and export only use the trimmed range |
 | Still | 📸 previews the current frame and offers "Download PNG", "Mask PNG" (transparent background) or "Export to ComfyUI" (input/vrm_pose_studio/) |
+| Comic Creator | When [ComfyUI Comic Creator](https://github.com/ketle-man/comfyui-comic-creator) is set to open its 3D Pose 🎛 Editor in VRM Pose Studio, the studio opens with the selected manga panel shape as a red dashed frame (with the panel name) and the output size locked to the panel (not saved in the project; "Release" restores it). "📤 Send to CC panel" inserts the current frame into that panel. Opened from CC, the background starts transparent and the ground hidden |
 | Export (video) | PNG sequence and character / prop masks. Under OUTPUT choose WebM (VP9, with alpha on a transparent background), MP4 (H.264) or GIF (transparent on a transparent background, long side 480 px); WebM / MP4 can include the mixed audio. "Save to ComfyUI output" saves to output/vrm_pose_studio/, otherwise the browser downloads it. "Video only" doesn't keep the PNG sequence. Physics is stepped deterministically at dt = 1/fps |
 | Usability | Undo/redo, project save (with thumbnails), drag & drop, shortcuts, resizable panels, Japanese / English UI |
+| Output frame | The viewport marks the output size with a frame and also draws the scene outside it under a dark translucent veil, so you can see what is just off-frame. Stills, videos and sent images contain only the inside of the frame |
 | Preferences (⚙ top right) | Mouse (view-control button mapping, wheel / Ctrl+right-drag zoom, Alt+left-drag zoom, speeds), stronger anti-aliasing, default model (added automatically on New and at startup), language. Saved in `data/settings.json` |
 
 ## Installation
@@ -73,10 +75,12 @@ If 3D Pose Editor is installed in the same `custom_nodes` as `comfyui-vrm-pose-e
 | SDXL generation (samples) | ComfyUI core | An Illustrious-based checkpoint → `models/checkpoints/`, `CN-anytest4_illustrious2_A` → `models/controlnet/` ([2vXpSwA7/iroiro-lora](https://huggingface.co/2vXpSwA7/iroiro-lora/tree/main/test_controlnet2)) |
 | Speech from text | [VOICEVOX](https://voicevox.hiroshiba.jp/) or [Lemonade](https://lemonade-server.ai/) (Kokoro) running on this PC | — |
 | Sharing with 3D Pose Editor | [comfyui-vrm-pose-editor](https://github.com/ketle-man/comfyui-vrm-pose-editor) (optional) | — |
+| Comic Creator integration | [ComfyUI Comic Creator](https://github.com/ketle-man/comfyui-comic-creator) (optional; select VRM Pose Studio under "3D Pose Editor" in its Settings tab) | — |
 
 - The Anima and Anima LLLite models are under CircleStone Labs' **non-commercial license** ([LICENSE](https://huggingface.co/circlestone-labs/Anima/blob/main/LICENSE.md)). The SAM 3D Body model has its own license (SAM License). Neither is included in this repository; you accept each license when you download the models.
 - The model names in the samples (`anima_baseV10.safetensors`, `flanimeIllustriousXL_v20.safetensors`, etc.) are from the author's setup. Pick your own files after loading a sample (the official Anima file is `anima-base-v1.0.safetensors`).
 - "Send to LI node" only works when the studio was opened from ComfyUI's top menu.
+- When the studio was opened from Comic Creator, the same button reads "Send to CC panel" and sends the image to Comic Creator instead (nothing is uploaded to input/).
 
 ## Security
 
@@ -126,7 +130,7 @@ ComfyUI-VRM-Pose-Studio/
 │  └─ js/
 │     ├─ app.js           layout, header, shortcuts, drag & drop
 │     ├─ engine/          viewport / objects (Actor, Prop) / cameras / environment / timeline / studio / exporter
-│     ├─ ui/              outliner / inspector / timeline-ui / assets / export-ui (still, video) / settings / motion / image-pose / generate / regional / comfy-run (shared ComfyUI run helpers) / audio-split / time-stretch / help
+│     ├─ ui/              outliner / inspector / timeline-ui / assets / export-ui (still, video) / settings / motion / cc-frame (Comic Creator panel frame) / image-pose / generate / regional / comfy-run (shared ComfyUI run helpers) / audio-split / time-stretch / help
 │     └─ lib/             copied unchanged from 3D Pose Editor / Workflow Studio (BVH, lip sync, SAM3D, workflow conversion)
 ├─ web/comfyui/vps_extension.js   action bar button, node buttons, receiver for "Send to LI node"
 ├─ example_workflows/     sample workflows (shown as 📦 sample/ in the Generate tab and in ComfyUI's templates)

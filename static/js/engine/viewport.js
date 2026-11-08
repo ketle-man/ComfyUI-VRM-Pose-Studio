@@ -1,7 +1,8 @@
 // viewport.js — レンダラー・カメラ・操作(Orbit / Transform)・ピッキング・書き出し用キャプチャ
 //
-// キャンバスは常に「出力解像度と同じアスペクト比」でコンテナ内にレターボックス表示する。
-// そのためビューポートで見えている構図がそのまま書き出される(WYSIWYG)。
+// キャンバスはコンテナ全体に広げ、その中央に「出力解像度と同じアスペクト比」の枠(frameRect)を置く。
+// カメラは setViewOffset で枠の外側まで広げて描くので、枠の中の構図がそのまま書き出される(WYSIWYG)。
+// 枠の外側はパスパルトゥー(暗い半透明の覆い)で隠す。撮影(capture)は view offset を外して出力サイズで描く
 
 import * as THREE from "../../vendor/three.module.js";
 import { OrbitControls } from "../../vendor/OrbitControls.js";
@@ -18,6 +19,12 @@ export class Viewport extends EventTarget {
         this.canvas = document.createElement("canvas");
         this.canvas.className = "vps-canvas";
         container.appendChild(this.canvas);
+        // 出力サイズの枠。外側を暗い半透明で覆う(大きな box-shadow。コンテナは overflow: hidden)
+        this.passepartout = document.createElement("div");
+        this.passepartout.className = "vps-passepartout";
+        container.appendChild(this.passepartout);
+        this.frameRect = { x: 0, y: 0, width: 1, height: 1 }; // キャンバス内の枠の位置(CSS px)
+        this.viewScale = { x: 1, y: 1 };                      // キャンバス / 枠 の大きさの比(背景テクスチャの合わせ込み用)
 
         this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
         this.renderer.setPixelRatio(window.devicePixelRatio || 1);
@@ -88,20 +95,41 @@ export class Viewport extends EventTarget {
 
     resize() {
         if (this._capturing) return;
-        const cw = this.container.clientWidth, ch = this.container.clientHeight;
+        const cw = Math.floor(this.container.clientWidth), ch = Math.floor(this.container.clientHeight);
         if (!cw || !ch) return;
         const a = this.outputSize.width / this.outputSize.height;
-        let w = cw, h = cw / a;
-        if (h > ch) { h = ch; w = ch * a; }
-        w = Math.floor(w); h = Math.floor(h);
-        this.canvas.style.width = `${w}px`;
-        this.canvas.style.height = `${h}px`;
-        this.renderer.setSize(w, h, false);
+        // 枠は余白を残して収める(縦横比がコンテナと同じでも外側が少し見えるように)
+        const pad = Math.min(24, Math.floor(Math.min(cw, ch) * 0.05));
+        const aw = Math.max(1, cw - pad * 2), ah = Math.max(1, ch - pad * 2);
+        let w = aw, h = aw / a;
+        if (h > ah) { h = ah; w = ah * a; }
+        w = Math.max(1, Math.floor(w)); h = Math.max(1, Math.floor(h));
+        this.frameRect = { x: Math.floor((cw - w) / 2), y: Math.floor((ch - h) / 2), width: w, height: h };
+        this.viewScale = { x: cw / w, y: ch / h };
+        this.canvas.style.width = `${cw}px`;
+        this.canvas.style.height = `${ch}px`;
+        this.renderer.setSize(cw, ch, false);
         this.camera.aspect = a;
-        this.camera.updateProjectionMatrix();
+        this._applyOverscan(true);
+        Object.assign(this.passepartout.style, {
+            left: `${this.frameRect.x}px`, top: `${this.frameRect.y}px`, width: `${w}px`, height: `${h}px`,
+        });
         this.aspect = a;
-        this.dispatchEvent(new CustomEvent("resize", { detail: { width: w, height: h, aspect: a } }));
+        this.dispatchEvent(new CustomEvent("resize", { detail: { width: w, height: h, aspect: a, frame: { ...this.frameRect } } }));
     }
+
+    // on: 枠の外側まで広げて描く(画面表示) / off: 枠だけを描く(撮影)。画角(fov)とアスペクトは出力のまま
+    _applyOverscan(on) {
+        const f = this.frameRect, cam = this.camera;
+        const cw = Math.round(f.width * this.viewScale.x), ch = Math.round(f.height * this.viewScale.y);
+        if (on && (cw !== f.width || ch !== f.height)) cam.setViewOffset(f.width, f.height, -f.x, -f.y, cw, ch);
+        else cam.clearViewOffset();
+        cam.updateProjectionMatrix();
+        this.dispatchEvent(new CustomEvent("overscan", { detail: { on } }));
+    }
+
+    // 背景テクスチャの拡大率(撮影中は枠ぴったり = 1)
+    get bgScale() { return this._capturing ? { x: 1, y: 1 } : this.viewScale; }
 
     // ---- ループ ----
     onBeforeRender(fn) { this._beforeRender.push(fn); }
@@ -119,9 +147,11 @@ export class Viewport extends EventTarget {
     _renderPip({ state, color }) {
         const r = this.renderer, cam = this._pipCam;
         const size = r.getSize(new THREE.Vector2());
-        const w = Math.round(Math.max(120, size.x * 0.28)), h = Math.round(w / this.aspect);
-        if (w > size.x - 16 || h > size.y - 16) return;
-        const x = size.x - w - 8, y = 8, b = 2;
+        // 出力サイズの枠の右下に置く(枠の外側はパスパルトゥーで暗くなるため)。y は下からの位置
+        const f = this.frameRect;
+        const w = Math.round(Math.max(120, f.width * 0.28)), h = Math.round(w / this.aspect);
+        if (w > f.width - 16 || h > f.height - 16) return;
+        const x = f.x + f.width - w - 8, y = size.y - (f.y + f.height) + 8, b = 2;
         cam.position.fromArray(state.position);
         cam.lookAt(new THREE.Vector3().fromArray(state.target));
         cam.fov = state.fov;
@@ -343,6 +373,15 @@ export class Viewport extends EventTarget {
         if (!c) return;
         const ctx = c.getContext("2d");
         ctx.fillStyle = "#11131c";
+        if (this._capturing) {
+            // 撮影中のキャンバスは出力サイズの絵なので、枠の部分にだけ描く(全体に描くと横に引き伸ばされる)。
+            // 枠の外側は重ねたときの画面のまま
+            const k = c.width / Math.max(1, this.canvas.clientWidth), f = this.frameRect;
+            const dx = Math.round(f.x * k), dy = Math.round(f.y * k), dw = Math.round(f.width * k), dh = Math.round(f.height * k);
+            ctx.fillRect(dx, dy, dw, dh);
+            ctx.drawImage(this.canvas, 0, 0, this.canvas.width, this.canvas.height, dx, dy, dw, dh);
+            return;
+        }
         ctx.fillRect(0, 0, c.width, c.height);
         ctx.drawImage(this.canvas, 0, 0, this.canvas.width, this.canvas.height, 0, 0, c.width, c.height);
     }
@@ -365,7 +404,7 @@ export class Viewport extends EventTarget {
             r.setPixelRatio(1);
             r.setSize(width, height, false);
             this.camera.aspect = width / height;
-            this.camera.updateProjectionMatrix();
+            this._applyOverscan(false);
             r.setClearColor(0x000000, transparent ? 0 : 1);
             this._render({ postFx });
             if (preview && !ownFreeze) this._drawFreeze();
@@ -376,9 +415,9 @@ export class Viewport extends EventTarget {
             r.setPixelRatio(prevPR);
             r.setSize(prevSize.x, prevSize.y, false);
             this.camera.aspect = prevAspect;
-            this.camera.updateProjectionMatrix();
             this.camera.layers.enable(HELPER_LAYER);
             this._capturing = false;
+            this._applyOverscan(true);
             // 元のサイズで描き直してから外す(サイズを戻すとキャンバスは空になる)
             if (ownFreeze) { this._render(); this.freeze(false); }
         }

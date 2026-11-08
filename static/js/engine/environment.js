@@ -91,6 +91,8 @@ export class Environment {
         this._tex = null;
         this._video = null;
         viewport.addEventListener("resize", () => this._fitTexture());
+        // 画面表示(枠の外側まで描く)と撮影(枠だけ)の切り替えで、背景の拡大率が変わる
+        viewport.addEventListener("overscan", () => this._fitTexture());
         this.apply(this.state);
     }
 
@@ -260,6 +262,12 @@ export class Environment {
             tex.repeat.y = ia / ca;
             tex.offset.y = (1 - tex.repeat.y) / 2;
         }
+        // 背景はキャンバス全体に貼られるので、枠の外側まで描いている間は枠の中が出力と同じになるよう広げる
+        const s = this.vp.bgScale ?? { x: 1, y: 1 };
+        tex.offset.x += tex.repeat.x * (1 - s.x) / 2;
+        tex.offset.y += tex.repeat.y * (1 - s.y) / 2;
+        tex.repeat.x *= s.x;
+        tex.repeat.y *= s.y;
         tex.needsUpdate = true;
     }
 

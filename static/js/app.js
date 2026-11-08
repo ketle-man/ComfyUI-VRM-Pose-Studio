@@ -17,6 +17,7 @@ import { buildRegionalTab } from "./ui/regional.js";
 import { buildAudioPanel, buildAudioSettings, placeAudio } from "./ui/audio-panel.js";
 import { openPoseLibrary } from "./ui/pose-library.js";
 import { buildImagePosePanel } from "./ui/image-pose.js";
+import { ccHost, setupCcBridge, applyCcInitialEnv, buildCcFrameOverlay, buildCcFrameBadge, sendToCc } from "./ui/cc-frame.js";
 
 const settings = await loadSettings();
 initI18n(settings.lang);
@@ -49,10 +50,14 @@ function outputSizeControl(studio) {
         w.value = width; h.value = height;
         const v = `${width}x${height}`;
         presets.value = OUTPUT_PRESETS.some(([, pw, ph]) => `${pw}x${ph}` === v) ? v : "";
+        // Comic Creator のコマ枠の適用中はコマのサイズに固定(「解除」で戻す)
+        const locked = !!studio.ccFrame;
+        for (const x of [w, h, presets]) { x.disabled = locked; x.hidden = locked; }
     };
     studio.addEventListener("output", sync);
+    studio.addEventListener("ccframe", sync);
     sync();
-    return el("div.vps-output-size", { title: t("output") }, el("span.vps-output-label", t("output")), w, el("span", "×"), h, presets);
+    return el("div.vps-output-size", { title: t("output") }, el("span.vps-output-label", t("output")), w, el("span.vps-output-x", "×"), h, presets, buildCcFrameBadge(studio));
 }
 
 function buildHeader(studio) {
@@ -118,7 +123,15 @@ function buildViewportToolbar(studio, root) {
     const jointOpacity = el("label.vps-joint-opacity", { title: t("jointOpacityTip") }, el("span", t("jointOpacity")), jointRange, jointPct);
     const monitorBtn = el("button.vps-btn.small.toggle", { title: t("monitorTip"), onclick: () => studio.setMonitor() }, `🖥 ${t("monitor")}`);
     const badge = el("div.vps-monitor-badge", t("monitorBadge"));
-    const liBtn = el("button.vps-btn.small.vps-li-btn", { title: t("sendToLiTip"), onclick: () => sendToLiNode(studio, liBtn) }, `📤 ${t("sendToLi")}`);
+    const liBtn = el("button.vps-btn.small.vps-li-btn", { onclick: () => sendToLiNode(studio, liBtn) });
+    // Comic Creator から開いたときは「CC のコマへ送る」になる
+    const syncLi = () => {
+        const cc = !!ccHost();
+        liBtn.textContent = `📤 ${t(cc ? "sendToCc" : "sendToLi")}`;
+        liBtn.title = t(cc ? "sendToCcTip" : "sendToLiTip");
+    };
+    studio.addEventListener("ccframe", syncLi);
+    syncLi();
     const ipBtn = el("button.vps-btn.small.toggle.vps-ip-btn", { title: t("imagePoseTip"), onclick: () => imagePose.toggle() }, `🖼 ${t("imagePoseShort")}`);
     const imagePose = buildImagePosePanel($("vps-ip"), studio, { onToggle: v => ipBtn.classList.toggle("on", v) });
     const bar = el("div.vps-vp-toolbar",
@@ -152,6 +165,21 @@ function buildViewportToolbar(studio, root) {
 // ComfyUI 側で選択中のノードの image ウィジェットへ書き込む(Workflow Studio の Send to LI node と同じ)。
 // ComfyUI のトップメニューから開いたときだけ window.opener が ComfyUI のタブになる
 async function sendToLiNode(studio, btn) {
+    // Comic Creator から開いた場合は、撮影画像を CC の送り先のコマへ直接渡す(input/ にはアップロードしない)
+    const cc = ccHost();
+    if (cc) {
+        btn.disabled = true;
+        try {
+            const { color } = await captureFrame(studio);
+            await sendToCc(cc, color, studio);
+            toast(t("sendToCcDone"), "success");
+        } catch (e) {
+            toast(`${t("sendToCcFailed")}: ${e?.message ?? e}`, "error", 8000);
+        } finally {
+            btn.disabled = false;
+        }
+        return;
+    }
     // 別オリジンのページから開かれた場合、opener のプロパティを読むだけで SecurityError になる
     let opener = null;
     try { opener = typeof window.opener?.vpsSendImageToSelectedNode === "function" ? window.opener : null; } catch { /* ignore */ }
@@ -282,6 +310,9 @@ function buildLeftPanel(root, studio) {
 // ---------------------------------------------------------------- boot
 const studio = new Studio($("vps-viewport"));
 applySettings(studio, settings);
+// Comic Creator から開かれたらコマ枠を受け取る(プロジェクトを開く前に。開いても枠のサイズが優先される)
+const openedFromCc = setupCcBridge(studio);
+buildCcFrameOverlay(studio, $("vps-viewport"));
 window.vpsStudio = studio; // デバッグ用
 buildHeader(studio);
 buildViewportToolbar(studio, $("vps-viewport-wrap"));
@@ -321,12 +352,18 @@ const want = new URLSearchParams(location.search).get("project") ?? (() => { try
 // 前回のプロジェクトが無ければ(開けなければ)既定モデルを追加する
 (async () => {
     if (want) {
-        try { await loadProjectByName(studio, want); return; } catch {
+        try {
+            await loadProjectByName(studio, want);
+            // CC から開いたときは背景を透過・地面を非表示にする(プロジェクトへの通常の編集として undo できる)
+            if (openedFromCc) await applyCcInitialEnv(studio);
+            return;
+        } catch {
             // 消えていたら新規扱いにして、次回からは開こうとしない
             try { localStorage.removeItem("vps:lastProject"); } catch { /* ignore */ }
         }
     }
     await loadDefaultModel(studio);
+    if (openedFromCc) await applyCcInitialEnv(studio);
     studio.resetHistory();
 })();
 
