@@ -6,7 +6,7 @@ import { t } from "../i18n.js";
 import { el, clear, slider, field, toast, promptText, downloadBlob } from "../util.js";
 import { pickAsset } from "./assets.js";
 import { importMotion } from "./motion.js";
-import { createSpeech } from "./audio-panel.js";
+import { createSpeech, ttsErrorText } from "./audio-panel.js";
 import { SCENE_TRACK, WIND_TRACK } from "../engine/timeline.js";
 import { confirmDialog } from "../util.js";
 
@@ -256,7 +256,7 @@ export function buildInspector(root, studio) {
                     const b = e.currentTarget;
                     b.disabled = true;
                     try { const it = await createSpeech(studio, lipText.value, { actorId: actor.id }); toast(`🔊 ${it.name}`, "success"); }
-                    catch (err) { toast(err.message, "error", 6000); }
+                    catch (err) { toast(ttsErrorText(err), "error", 6000); }
                     finally { b.disabled = false; }
                 },
             }, `🔊 ${t("ttsFromLip")}`)),

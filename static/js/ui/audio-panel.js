@@ -24,6 +24,14 @@ export async function placeAudio(studio, it) {
 }
 
 // テキストから音声を作る。actorId があれば、その人物の口パクを有効にし、セリフを同じ文に、口パクの音声をこのトラックにする
+// TTS のサーバーエラーを画面の言語で出す(コードを ttsErr_<code> で訳す。辞書に無ければサーバーの英語のまま)
+export function ttsErrorText(e) {
+    if (!e?.code) return e?.message ?? String(e);
+    const key = `ttsErr_${e.code}`;
+    const s = t(key, e.params);
+    return s === key ? e.message : s;
+}
+
 export async function createSpeech(studio, text, { voice, actorId, place = true } = {}) {
     text = (text || "").trim();
     if (!text) throw new Error(t("ttsEmpty"));
@@ -198,7 +206,7 @@ export function buildAudioPanel(root, studio) {
             const it = await createSpeech(studio, text.value, { actorId });
             genStatus.textContent = `✓ ${it.name}${actorId ? ` → ${a.name}` : ""}`;
         } catch (e) {
-            genStatus.textContent = `✕ ${e.message}`;
+            genStatus.textContent = `✕ ${ttsErrorText(e)}`;
         } finally {
             genBtn.disabled = false;
         }
@@ -212,7 +220,7 @@ export function buildAudioPanel(root, studio) {
 
 // ================================================================ S: 音声 API
 export function buildAudioSettings(root, studio) {
-    const engine = el("select.vps-select", {}, el("option", { value: "lemonade" }, "Lemonade（Kokoro）"), el("option", { value: "voicevox" }, "VOICEVOX"));
+    const engine = el("select.vps-select", {}, el("option", { value: "lemonade" }, "Lemonade (Kokoro)"), el("option", { value: "voicevox" }, "VOICEVOX"));
     const lmUrl = el("input.vps-input", { placeholder: "http://127.0.0.1:13305" });
     const lmModel = el("input.vps-input", { placeholder: "kokoro-v1" });
     const lmVoice = el("select.vps-select");
@@ -271,23 +279,23 @@ export function buildAudioSettings(root, studio) {
             fill(settings);
             status.textContent = "";
             if (settings.engine === "voicevox") loadSpeakers(true);
-        } catch (e) { status.textContent = e.message; }
+        } catch (e) { status.textContent = ttsErrorText(e); }
     }
     async function save() {
         try { fill((await api.post("/vps/api/tts/settings", body())).settings); status.textContent = t("saved"); }
-        catch (e) { status.textContent = `✕ ${e.message}`; }
+        catch (e) { status.textContent = `✕ ${ttsErrorText(e)}`; }
     }
     async function loadSpeakers(quiet = false) {
         try {
             const { speakers } = await api.get("/vps/api/tts/speakers");
             setSpeakers(speakers, vvSpeaker.value);
             if (!quiet) status.textContent = t("ttsSpeakersLoaded", { n: speakers.length });
-        } catch (e) { if (!quiet) status.textContent = `✕ ${e.message}`; }
+        } catch (e) { if (!quiet) status.textContent = `✕ ${ttsErrorText(e)}`; }
     }
     // 接続先を変えた直後でも取れるよう、先に VOICEVOX の設定だけ保存してから取得する
     async function reloadSpeakers() {
         try { await api.post("/vps/api/tts/settings", { voicevox: body().voicevox }); }
-        catch (e) { status.textContent = `✕ ${e.message}`; return; }
+        catch (e) { status.textContent = `✕ ${ttsErrorText(e)}`; return; }
         loadSpeakers();
     }
     async function test() {
@@ -295,8 +303,8 @@ export function buildAudioSettings(root, studio) {
         try {
             await api.post("/vps/api/tts/settings", body());
             const r = await api.get("/vps/api/tts/health");
-            status.textContent = r.ok ? `✓ ${t("ttsTestOk")}（${r.engine} ${r.status}）` : `✕ ${r.error}`;
-        } catch (e) { status.textContent = `✕ ${e.message}`; }
+            status.textContent = r.ok ? `✓ ${t("ttsTestOk")} (${r.engine} ${r.status})` : `✕ ${ttsErrorText({ message: r.error, code: r.code, params: r.params })}`;
+        } catch (e) { status.textContent = `✕ ${ttsErrorText(e)}`; }
     }
 
     return { show: load };

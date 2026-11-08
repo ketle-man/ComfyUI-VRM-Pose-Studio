@@ -37,13 +37,37 @@ def _settings_path():
     return POSE_EDITOR_OUT / "api_settings.json"
 
 
+# エラーはコードで返す。メッセージは英語で、画面側(static/js/ui/audio-panel.js の ttsErrorText)が
+# コードを i18n の辞書(ttsErr_<code>)で訳す。辞書に無いコードは英語のメッセージをそのまま出す
+ERRORS = {
+    "invalid_json": "Invalid JSON",
+    "bad_scheme": "base_url must start with http:// or https://",
+    "bad_url_parts": "base_url cannot contain user info, a query or a fragment",
+    "not_local": "Only this PC (localhost / 127.0.0.1 / ::1) can be used as the endpoint",
+    "bad_settings": "Invalid settings",
+    "bad_engine": "Invalid engine",
+    "bad_engine_settings": "Invalid {name} settings",
+    "bad_value": "{name}.{key} is empty or too long",
+    "bad_speaker": "speaker must be a numeric speaker ID",
+    "connect_failed": "Could not connect (check that the engine is running)",
+    "speakers_failed": "Could not get the speaker list",
+    "empty_text": "The text is empty",
+    "text_too_long": "The text must be {max} characters or fewer",
+    "generate_failed": "Could not create the speech (check that the engine is running, or see the server log)",
+}
+
+
+def _error_body(code, **params):
+    return {"error": ERRORS[code].format(**params), "code": code, "params": params}
+
+
 def _base_url_error(url: str):
-    """接続先 URL の検証。問題なければ None、あれば理由を返す"""
+    """接続先 URL の検証。問題なければ None、あればエラーコードを返す"""
     parts = urllib.parse.urlsplit(url)
     if parts.scheme not in ("http", "https"):
-        return "base_url は http:// か https:// で始めてください"
+        return "bad_scheme"
     if parts.username or parts.password or parts.query or parts.fragment:
-        return "base_url にユーザー情報・クエリ・フラグメントは含められません"
+        return "bad_url_parts"
     host = parts.hostname or ""
     if host.lower() == "localhost":
         return None
@@ -52,7 +76,7 @@ def _base_url_error(url: str):
             return None
     except ValueError:
         pass
-    return "接続先はこの PC（localhost / 127.0.0.1 / ::1）のみ指定できます"
+    return "not_local"
 
 
 def _load_settings() -> dict:
@@ -132,8 +156,8 @@ def _call_voicevox(cfg, text, speaker) -> bytes:
     return wav
 
 
-def _err(msg, status=400):
-    return web.json_response({"error": msg}, status=status)
+def _err(code, status=400, **params):
+    return web.json_response(_error_body(code, **params), status=status)
 
 
 async def tts_settings_get(request):
@@ -144,32 +168,32 @@ async def tts_settings_post(request):
     try:
         body = await request.json()
     except Exception:
-        return _err("invalid json")
+        return _err("invalid_json")
     if not isinstance(body, dict):
-        return _err("設定が不正です")
+        return _err("bad_settings")
     current = _load_settings()
     if "engine" in body:
         if body["engine"] not in ENGINES:
-            return _err("engine が不正です")
+            return _err("bad_engine")
         current["engine"] = body["engine"]
     for name, defaults in (("lemonade", DEFAULT_LEMONADE), ("voicevox", DEFAULT_VOICEVOX)):
         incoming = body.get(name)
         if incoming is None:
             continue
         if not isinstance(incoming, dict):
-            return _err(f"{name} の設定が不正です")
+            return _err("bad_engine_settings", name=name)
         cleaned = {}
         for key in defaults:
             value = str(incoming.get(key, "")).strip()
             if not value or len(value) > MAX_SETTING_LEN:
-                return _err(f"{name}.{key} が空、または長すぎます")
+                return _err("bad_value", name=name, key=key)
             cleaned[key] = value
         err = _base_url_error(cleaned["base_url"])
         if err:
             return _err(err)
         cleaned["base_url"] = cleaned["base_url"].rstrip("/")
         if name == "voicevox" and not cleaned["speaker"].isdigit():
-            return _err("speaker は数字の話者 ID で指定してください")
+            return _err("bad_speaker")
         current[name] = cleaned
     _settings_path().write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
     return web.json_response({"settings": current})
@@ -181,7 +205,7 @@ async def tts_health(request):
     cfg = settings[engine]
     err = _base_url_error(cfg["base_url"])
     if err:
-        return web.json_response({"ok": False, "error": err})
+        return web.json_response({"ok": False, **_error_body(err)})
     url = cfg["base_url"].rstrip("/") + ("/version" if engine == "voicevox" else "/api/v1/health")
     try:
         status, _ = await asyncio.to_thread(_http_request, url, "GET", None, None, 5)
@@ -189,7 +213,7 @@ async def tts_health(request):
             raise RuntimeError(f"HTTP {status}")
     except Exception:  # noqa: BLE001
         log.exception("%s health check failed", engine)
-        return web.json_response({"ok": False, "error": "接続できませんでした（エンジンが起動しているか確認してください）"})
+        return web.json_response({"ok": False, **_error_body("connect_failed")})
     return web.json_response({"ok": True, "engine": engine, "status": f"HTTP {status}"})
 
 
@@ -202,11 +226,11 @@ async def tts_speakers(request):
         status, data = await asyncio.to_thread(_http_request, cfg["base_url"].rstrip("/") + "/speakers", "GET", None, None, 10)
         if status != 200:
             raise RuntimeError(f"HTTP {status}")
-        speakers = [{"id": str(st["id"]), "name": f"{sp['name']}（{st['name']}）"}
+        speakers = [{"id": str(st["id"]), "name": f"{sp['name']} ({st['name']})"}
                     for sp in json.loads(data) for st in sp.get("styles", [])]
     except Exception:  # noqa: BLE001
         log.exception("VOICEVOX speakers fetch failed")
-        return _err("話者一覧を取得できませんでした", 502)
+        return _err("speakers_failed", 502)
     return web.json_response({"speakers": speakers})
 
 
@@ -214,12 +238,12 @@ async def tts_generate(request, asset_item):
     try:
         body = await request.json()
     except Exception:
-        return _err("invalid json")
+        return _err("invalid_json")
     text = str(body.get("text", "")).strip()
     if not text:
-        return _err("テキストが空です")
+        return _err("empty_text")
     if len(text) > MAX_TEXT_LEN:
-        return _err(f"テキストは {MAX_TEXT_LEN} 文字以内にしてください")
+        return _err("text_too_long", max=MAX_TEXT_LEN)
     settings = _load_settings()
     engine = settings["engine"]
     cfg = settings[engine]
@@ -229,7 +253,7 @@ async def tts_generate(request, asset_item):
     if engine == "voicevox":
         voice = str(body.get("voice") or cfg["speaker"]).strip() or cfg["speaker"]
         if not voice.isdigit():
-            return _err("VOICEVOX の話者 ID は数字で指定してください")
+            return _err("bad_speaker")
         tag, ext, call = f"vv{voice}", "wav", _call_voicevox
     else:
         voice = str(body.get("voice") or cfg["voice"]).strip() or cfg["voice"]
@@ -239,7 +263,7 @@ async def tts_generate(request, asset_item):
         audio = await asyncio.to_thread(call, cfg, text, voice)
     except Exception:  # noqa: BLE001
         log.exception("%s speech generation failed", engine)
-        return _err("音声の作成に失敗しました（エンジンが起動しているか、サーバーのログを確認してください）", 502)
+        return _err("generate_failed", 502)
 
     out_dir = ASSETS_DIR / "audio"
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")

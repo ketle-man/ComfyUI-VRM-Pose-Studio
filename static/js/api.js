@@ -1,10 +1,17 @@
 // api.js — サーバー API の薄いラッパー
 
+// サーバーのエラー本文 {error, code?, params?} を Error にする(code / params は画面側の翻訳用)
+function apiError(body, fallback) {
+    const e = new Error(body?.error || fallback);
+    if (body?.code) { e.code = body.code; e.params = body.params ?? {}; }
+    return e;
+}
+
 async function handle(res) {
     if (!res.ok) {
-        let msg = `HTTP ${res.status}`;
-        try { msg = (await res.json()).error || msg; } catch { /* not json */ }
-        throw new Error(msg);
+        let body = null;
+        try { body = await res.json(); } catch { /* not json */ }
+        throw apiError(body, `HTTP ${res.status}`);
     }
     const ct = res.headers.get("content-type") || "";
     return ct.includes("json") ? res.json() : res.text();
@@ -29,7 +36,7 @@ export const api = {
                 let body = null;
                 try { body = JSON.parse(xhr.responseText); } catch { /* ignore */ }
                 if (xhr.status >= 200 && xhr.status < 300) resolve(body);
-                else reject(new Error(body?.error || `HTTP ${xhr.status}`));
+                else reject(apiError(body, `HTTP ${xhr.status}`));
             };
             xhr.onerror = () => reject(new Error("network error"));
             xhr.send(fd);
