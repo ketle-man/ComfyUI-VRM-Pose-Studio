@@ -21,7 +21,7 @@ from pathlib import Path
 
 from aiohttp import web
 
-from .config import ASSET_KINDS, ASSETS_DIR, DATA_DIR, POSE_EDITOR_DIR, asset_sources
+from .config import ASSET_KINDS, ASSETS_DIR, DATA_DIR, POSE_EDITOR_DIR, asset_sources, is_safe_rel
 
 STORE = DATA_DIR / "pose_library"
 THUMBS = STORE / "thumbnails"
@@ -60,6 +60,10 @@ def _err(msg, status=400):
 
 
 def _resolve(base: Path, rel: str):
+    """base 配下に収まるときだけ解決済みパスを返す。UNC・ドライブ指定・絶対パス・「..」は
+    結合・resolve() の前に is_safe_rel で文字列のまま拒否する(routes.py の resolve_under と同じ)。"""
+    if not is_safe_rel(rel):
+        return None
     try:
         p = (base / rel).resolve()
         p.relative_to(base.resolve())

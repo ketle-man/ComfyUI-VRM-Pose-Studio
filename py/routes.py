@@ -32,7 +32,7 @@ from aiohttp import web
 
 from .config import (
     ASSET_KINDS, ASSETS_DIR, DATA_DIR, PROJECTS_DIR, RENDERS_DIR, ROOT_DIR, STATIC_DIR, STUDIO_OUT, TEMPLATES_DIR,
-    asset_sources,
+    asset_sources, is_safe_rel,
 )
 from .tts import setup_tts_routes
 from .pose_library import setup_poselib_routes
@@ -61,7 +61,13 @@ def unique_path(directory: Path, filename: str) -> Path:
 
 
 def resolve_under(base: Path, rel: str):
-    """base 配下に収まるときだけ解決済みパスを返す(パストラバーサル対策)。"""
+    """base 配下に収まるときだけ解決済みパスを返す(パストラバーサル対策)。
+
+    UNC・ドライブ指定・絶対パス・「..」は is_safe_rel で結合・resolve() の前に
+    文字列のまま拒否する(Windows では UNC を resolve() するだけで相手ホストへ接続するため)。
+    """
+    if not is_safe_rel(rel):
+        return None
     try:
         target = (base / rel).resolve()
         target.relative_to(base.resolve())

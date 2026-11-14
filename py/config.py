@@ -1,7 +1,29 @@
 """パス設定。ComfyUI 本体が無い環境(dev_server.py)でも import できるようにする。"""
 
 import os
+import re
 from pathlib import Path
+
+_DRIVE_RE = re.compile(r"^[A-Za-z]:")
+
+
+def is_safe_rel(rel) -> bool:
+    """リクエスト由来の相対パスを、ディレクトリと結合する前に文字列のまま検査する。
+
+    Windows では UNC パス(\\\\host\\share)は resolve() した時点で相手ホストへ
+    Windows アカウントの資格情報付きで接続してしまうため、UNC・ドライブ指定・
+    絶対パス・「..」をパス操作より先に拒否する。
+    """
+    s = str(rel or "")
+    if not s or "\x00" in s:
+        return False
+    if s.startswith(("/", "\\")):  # 絶対パス・UNC(//host/share, \\host\share)
+        return False
+    if _DRIVE_RE.match(s):  # ドライブ指定(C:...)
+        return False
+    if any(part in ("", "..") for part in re.split(r"[/\\]", s)):
+        return False
+    return True
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = ROOT_DIR / "static"
